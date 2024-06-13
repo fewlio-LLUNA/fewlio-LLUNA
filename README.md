@@ -1,10 +1,10 @@
 ## Welcome to Mypage
 
-![GitHub-Mark-Light](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=default#gh-dark-mode-only)
-![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=dark#gh-light-mode-only)
+![GitHub-Mark-Light](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=default#gh-light-mode-only)
+![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=dark#gh-dark-mode-only)
 
-![GitHub-Mark-Ligit](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=default#gh-dark-mode-only)
-![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=dark#gh-light-mode-only)
+![GitHub-Mark-Ligit](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=default#gh-light-mode-only)
+![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=dark)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./img/snake-dark.svg">
