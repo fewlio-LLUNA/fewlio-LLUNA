@@ -24,11 +24,23 @@
   />
 </picture>
 
+<!-- Snake -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./img/snake-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="./img/snake.svg">
   <img alt="github contribution grid snake animation" src="./img/snake.svg">
 </picture>
 
+<!-- READMe.pet -->
+![readme.pet](https://readme.pet/api?username={fewlio-LLUNA})
+
 ## My Experience with Technologies
 ![](https://skillicons.dev/icons?i=html,css,js,react,java,nodejs,python,md,php,mysql,ubuntu,windows,raspberrypi,docker,blender,figma) <br/><br/>
+
+## My Portfolio
+
+<a href="https://fewlio.pics">
+  <img src="https://fewlio.pics/wp/wp-content/uploads/2024/04/background_image.png" alt="Portfolio Site" style="height:300px; width:auto;" />
+</a>
+
+Visit my portfolio site: [fewlio.pics](https://fewlio.pics)
