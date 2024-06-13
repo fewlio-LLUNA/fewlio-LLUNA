@@ -1,10 +1,28 @@
 ## Welcome to Mypage
 
-![GitHub-Mark-Light](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=default#gh-light-mode-only)
-![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=dark#gh-dark-mode-only)
+<!-- GitHub の統計カード -->
+<picture>
+  <source 
+    srcset="http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=dark"
+    media="(prefers-color-scheme: dark)"
+  />
+  <img 
+    src="http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=default" 
+    alt="GitHub Stats"
+  />
+</picture>
 
-![GitHub-Mark-Ligit](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=default#gh-light-mode-only)
-![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=dark)
+<!-- GitHub のリポジトリごとの言語カード -->
+<picture>
+  <source 
+    srcset="http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=dark"
+    media="(prefers-color-scheme: dark)"
+  />
+  <img 
+    src="http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=default" 
+    alt="GitHub Repos per Language"
+  />
+</picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./img/snake-dark.svg">
