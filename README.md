@@ -1,7 +1,10 @@
 ## Welcome to Mypage
 
-![](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=dark)
-![](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=dark)
+![GitHub-Mark-Light](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=default#gh-dark-mode-only)
+![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/stats?username=fewlio-LLUNA&theme=dark#gh-light-mode-only)
+
+![GitHub-Mark-Ligit](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=default#gh-dark-mode-only)
+![GitHub-Mark-Dark](http://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=fewlio-LLUNA&theme=dark#gh-light-mode-only)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./img/snake-dark.svg">
