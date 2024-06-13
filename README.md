@@ -32,7 +32,7 @@
 </picture>
 
 <!-- READMe.pet -->
-![readme.pet](https://readme.pet/api?username={fewlio-LLUNA})
+<!-- ![readme.pet](https://readme.pet/api?username={fewlio-LLUNA}) -->
 
 ## My Experience with Technologies
 ![](https://skillicons.dev/icons?i=html,css,js,react,java,nodejs,python,md,php,mysql,ubuntu,windows,raspberrypi,docker,blender,figma) <br/><br/>
