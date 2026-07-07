@@ -3,66 +3,99 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#12121a">
+<meta name="theme-color" content="#0b0b13">
 <title>Rhythm Tap Memo — リズムメモ</title>
 <style>
   :root {
-    --bg: #12121a;
-    --surface: #1c1c28;
-    --surface2: #262636;
-    --text: #ececf4;
-    --text-dim: #9a9ab0;
-    --accent: #7c6cf6;
-    --accent-soft: #7c6cf633;
-    --danger: #f66c8a;
-    --ok: #5fd4a2;
-    --radius: 14px;
+    --bg: #0b0b13;
+    --glow1: rgba(139, 92, 246, .18);
+    --glow2: rgba(236, 72, 153, .12);
+    --surface: rgba(255, 255, 255, .05);
+    --surface2: rgba(255, 255, 255, .09);
+    --border: rgba(255, 255, 255, .10);
+    --card-solid: #1b1a26;
+    --text: #f3f2f9;
+    --text-dim: #a09db8;
+    --accent: #8b5cf6;
+    --accent2: #ec4899;
+    --accent-soft: rgba(139, 92, 246, .18);
+    --danger: #fb7185;
+    --ok: #34d399;
+    --radius: 20px;
+    --radius-sm: 13px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    --glass-blur: blur(14px);
   }
   @media (prefers-color-scheme: light) {
     :root {
-      --bg: #f4f4f8;
-      --surface: #ffffff;
-      --surface2: #ebebf2;
-      --text: #22222e;
-      --text-dim: #6a6a80;
-      --accent: #6a58e8;
-      --accent-soft: #6a58e822;
+      --bg: #f3f2fa;
+      --glow1: rgba(139, 92, 246, .16);
+      --glow2: rgba(236, 72, 153, .10);
+      --surface: rgba(255, 255, 255, .78);
+      --surface2: rgba(29, 26, 46, .06);
+      --border: rgba(29, 26, 46, .10);
+      --card-solid: #ffffff;
+      --text: #201c33;
+      --text-dim: #6f6b8a;
+      --accent: #7c3aed;
+      --accent2: #db2777;
+      --accent-soft: rgba(124, 58, 237, .13);
+      --danger: #e11d48;
+      --ok: #059669;
+      --shadow: 0 10px 30px rgba(88, 63, 175, .14);
     }
   }
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
-    background: var(--bg);
+    background:
+      radial-gradient(55% 38% at 12% -4%, var(--glow1), transparent 70%),
+      radial-gradient(48% 34% at 96% 10%, var(--glow2), transparent 70%),
+      radial-gradient(75% 50% at 50% 115%, var(--glow1), transparent 70%),
+      var(--bg);
+    background-attachment: fixed;
     color: var(--text);
     display: flex;
     flex-direction: column;
     max-width: 560px;
     margin: 0 auto;
-    padding: 12px;
-    gap: 10px;
+    padding: 14px;
+    gap: 12px;
     overscroll-behavior: none;
   }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+
+  /* ---- header ---- */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px; }
+  header h1 { font-size: 19px; font-weight: 800; letter-spacing: .02em; }
+  header h1 .grad {
+    background: linear-gradient(92deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
-  header h1 { font-size: 17px; font-weight: 700; letter-spacing: .02em; }
   header .toggles { display: flex; gap: 6px; }
   .toggle {
-    border: 1px solid var(--surface2);
+    border: 1px solid var(--border);
     background: var(--surface);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     color: var(--text-dim);
     border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 13px;
+    padding: 7px 13px;
+    font-size: 12.5px;
+    font-weight: 600;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
+    transition: color .15s, background .15s, border-color .15s, box-shadow .15s;
   }
-  .toggle.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .toggle.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 14px var(--accent-soft);
+  }
 
   /* ---- metronome ---- */
   #metroPanel {
@@ -70,195 +103,313 @@
     align-items: center;
     gap: 8px;
     background: var(--surface);
+    border: 1px solid var(--border);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border-radius: var(--radius);
-    padding: 8px 10px;
+    padding: 9px 12px;
+    box-shadow: var(--shadow);
   }
   #metroToggle {
-    border: none; background: var(--surface2); color: var(--text);
-    border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: none;
+    background: var(--surface2);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 9px 13px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
     white-space: nowrap;
+    transition: background .15s, box-shadow .15s;
   }
-  #metroToggle.on { background: var(--accent); color: #fff; }
+  #metroToggle.on {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    box-shadow: 0 4px 16px var(--accent-soft);
+  }
   .metroBpmCtrl { display: flex; align-items: center; gap: 4px; }
   .metroBpmCtrl button {
-    border: none; background: var(--surface2); color: var(--text);
-    border-radius: 8px; width: 34px; height: 34px; font-size: 15px; cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    border-radius: 10px;
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+    cursor: pointer;
   }
-  #metroBpmShow { min-width: 62px; text-align: center; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .metroBpmCtrl button:active { background: var(--surface2); }
+  #metroBpmShow { min-width: 60px; text-align: center; font-weight: 700; font-size: 13.5px; font-variant-numeric: tabular-nums; }
   #beatDots { display: flex; gap: 7px; margin-left: auto; }
   #beatDots i {
-    width: 11px; height: 11px; border-radius: 50%;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
     background: var(--surface2);
-    transition: transform .09s, background .09s;
+    border: 1px solid var(--border);
+    transition: transform .09s, background .09s, box-shadow .09s;
   }
-  #beatDots i.hit { background: var(--accent); transform: scale(1.4); }
-  #beatDots i.accent.hit { background: var(--danger); }
+  #beatDots i.hit { background: var(--accent); border-color: transparent; transform: scale(1.45); box-shadow: 0 0 10px var(--accent); }
+  #beatDots i.accent.hit { background: var(--accent2); box-shadow: 0 0 12px var(--accent2); }
 
   /* ---- tap pad ---- */
   #pad {
     position: relative;
     flex: 1;
-    min-height: 220px;
-    background: var(--surface);
-    border: 2px solid var(--surface2);
-    border-radius: var(--radius);
+    min-height: 230px;
+    background:
+      radial-gradient(130% 100% at 50% 125%, var(--accent-soft), transparent 55%),
+      var(--surface);
+    border: 1px solid var(--border);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-radius: calc(var(--radius) + 6px);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .06);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 10px;
     cursor: pointer;
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-    transition: background .08s, border-color .15s;
+    transition: border-color .2s, box-shadow .2s;
     overflow: hidden;
   }
-  #pad.recording { border-color: var(--danger); }
-  #pad.pressed { background: var(--accent-soft); }
-  #padLabel { font-size: 18px; font-weight: 600; pointer-events: none; }
-  #padSub { font-size: 13px; color: var(--text-dim); pointer-events: none; text-align: center; line-height: 1.6; padding: 0 16px;}
+  #pad::before {
+    content: "";
+    position: absolute;
+    width: 205px;
+    height: 205px;
+    border-radius: 50%;
+    border: 1.5px dashed var(--accent);
+    opacity: .35;
+    transition: transform .25s ease, opacity .25s;
+    pointer-events: none;
+  }
+  #pad.pressed::before { transform: scale(1.12) rotate(6deg); opacity: .8; }
+  #pad.pressed { border-color: var(--accent); }
+  #pad.recording {
+    border-color: var(--danger);
+    box-shadow: 0 10px 34px rgba(251, 113, 133, .16), inset 0 1px 0 rgba(255, 255, 255, .06);
+  }
+  #padLabel { font-size: 20px; font-weight: 800; letter-spacing: .05em; pointer-events: none; }
+  #padSub { font-size: 12.5px; color: var(--text-dim); pointer-events: none; text-align: center; line-height: 1.8; padding: 0 18px; }
   #recDot {
-    position: absolute; top: 12px; left: 14px;
+    position: absolute; top: 14px; left: 16px;
     display: none; align-items: center; gap: 6px;
-    font-size: 13px; color: var(--danger); font-weight: 600;
+    font-size: 12px; color: var(--danger); font-weight: 700; letter-spacing: .12em;
     pointer-events: none;
   }
   #pad.recording #recDot { display: flex; }
   #recDot::before {
-    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    content: ""; width: 9px; height: 9px; border-radius: 50%;
     background: var(--danger);
+    box-shadow: 0 0 8px var(--danger);
     animation: blink 1s infinite;
   }
   @keyframes blink { 50% { opacity: .25; } }
   #elapsed {
-    position: absolute; top: 12px; right: 14px;
-    font-size: 13px; color: var(--text-dim);
+    position: absolute; top: 14px; right: 16px;
+    font-size: 12.5px; color: var(--text-dim);
     font-variant-numeric: tabular-nums;
     pointer-events: none;
   }
   .ripple {
     position: absolute;
     border-radius: 50%;
-    background: var(--accent);
-    opacity: .35;
+    background: radial-gradient(circle, var(--accent2), var(--accent) 70%);
+    opacity: .4;
     transform: translate(-50%, -50%) scale(0);
-    animation: ripple .5s ease-out forwards;
+    animation: ripple .55s ease-out forwards;
     pointer-events: none;
   }
   @keyframes ripple { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
 
   /* ---- controls ---- */
-  .row { display: flex; gap: 8px; }
+  .row { display: flex; gap: 9px; }
   button.btn {
     flex: 1;
-    border: none;
-    border-radius: var(--radius);
-    padding: 14px 10px;
-    font-size: 15px;
-    font-weight: 600;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 8px;
+    font-size: 14.5px;
+    font-weight: 700;
     cursor: pointer;
-    background: var(--surface2);
+    background: var(--surface);
     color: var(--text);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     user-select: none;
     -webkit-user-select: none;
+    transition: transform .08s, box-shadow .15s, opacity .15s;
   }
-  button.btn:disabled { opacity: .35; cursor: default; }
-  button.btn.primary { background: var(--accent); color: #fff; }
-  button.btn.danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+  button.btn:active:not(:disabled) { transform: scale(.97); }
+  button.btn:disabled { opacity: .32; cursor: default; }
+  button.btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    color: #fff;
+    box-shadow: 0 6px 20px var(--accent-soft);
+  }
+  button.btn.danger {
+    background: transparent;
+    border-color: var(--danger);
+    color: var(--danger);
+  }
 
   /* ---- timeline ---- */
   #timelineWrap {
     background: var(--surface);
+    border: 1px solid var(--border);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
     border-radius: var(--radius);
-    padding: 12px;
+    padding: 14px;
     display: none;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    box-shadow: var(--shadow);
   }
   #timelineWrap.show { display: flex; }
-  #timelineInfo { font-size: 13px; color: var(--text-dim); display: flex; justify-content: space-between; }
+  #timelineInfo { font-size: 12.5px; color: var(--text-dim); display: flex; justify-content: space-between; font-weight: 600; }
   #timeline {
     position: relative;
-    height: 44px;
+    height: 48px;
     background: var(--surface2);
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
     overflow: hidden;
   }
   #timeline .note {
     position: absolute;
-    top: 8px; bottom: 8px;
+    top: 9px; bottom: 9px;
     min-width: 5px;
-    border-radius: 4px;
-    background: var(--accent);
-    opacity: .85;
-    transition: background .05s;
+    border-radius: 5px;
+    background: linear-gradient(180deg, var(--accent), var(--accent2));
+    box-shadow: 0 0 8px var(--accent-soft);
+    opacity: .95;
+    transition: background .05s, box-shadow .05s;
   }
-  #timeline .note.hit { background: var(--ok); }
+  #timeline .note.hit {
+    background: linear-gradient(180deg, var(--ok), var(--ok));
+    box-shadow: 0 0 12px rgba(52, 211, 153, .5);
+  }
   #timeline #cursor {
     position: absolute; top: 0; bottom: 0; width: 2px;
     background: var(--text);
-    opacity: .6;
+    opacity: .55;
     display: none;
   }
-  .speedRow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-dim); }
+  .speedRow { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
   .speedRow input[type=range] { flex: 1; accent-color: var(--accent); }
 
   /* ---- score (sheet music) ---- */
   #scoreWrap {
     display: none;
     flex-direction: column;
-    gap: 8px;
-    border-top: 1px solid var(--surface2);
-    padding-top: 10px;
+    gap: 9px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
   }
   #scoreWrap.show { display: flex; }
   .scoreCtrl { display: flex; align-items: center; gap: 5px; font-size: 13px; flex-wrap: wrap; }
   .scoreCtrl button {
-    border: none; background: var(--surface2); color: var(--text);
-    border-radius: 8px; min-width: 36px; height: 32px; cursor: pointer; font-size: 13px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    border-radius: 10px;
+    min-width: 36px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 13px;
   }
-  .scoreCtrl #bpmShow { min-width: 58px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .scoreCtrl button:active { background: var(--surface2); }
+  .scoreCtrl #bpmShow { min-width: 58px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
   .scoreCtrl select {
-    margin-left: auto; background: var(--surface2); color: var(--text);
-    border: none; border-radius: 8px; padding: 7px 8px; font-size: 13px;
+    margin-left: auto;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 7px 8px;
+    font-size: 12.5px;
   }
-  .scoreHint { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
-  #scoreScroll { overflow-x: auto; background: var(--surface2); border-radius: 8px; padding: 4px 0; }
+  .scoreHint { font-size: 11.5px; color: var(--text-dim); line-height: 1.7; }
+  #scoreScroll {
+    overflow-x: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 6px 2px;
+  }
   #scoreSvg { color: var(--text); display: block; }
 
   /* ---- saved list ---- */
-  #savedSection h2 { font-size: 14px; color: var(--text-dim); font-weight: 600; margin-bottom: 8px; }
+  #savedSection h2 {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 700;
+    letter-spacing: .18em;
+    margin: 2px 4px 9px;
+  }
   #savedList { display: flex; flex-direction: column; gap: 8px; max-height: 32vh; overflow-y: auto; }
   .memo {
     background: var(--surface);
-    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-radius: 16px;
     padding: 10px 12px;
     display: flex;
     align-items: center;
     gap: 10px;
   }
   .memo .meta { flex: 1; min-width: 0; }
-  .memo .name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .memo .sub { font-size: 12px; color: var(--text-dim); }
+  .memo .name { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .memo .sub { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
   .memo button {
-    border: none; background: var(--surface2); color: var(--text);
-    border-radius: 8px; width: 38px; height: 38px; font-size: 16px; cursor: pointer;
+    border: none;
+    width: 38px; height: 38px;
+    font-size: 15px;
+    cursor: pointer;
     flex-shrink: 0;
   }
-  .memo button.del { color: var(--danger); background: transparent; }
-  #emptyMsg { font-size: 13px; color: var(--text-dim); text-align: center; padding: 12px 0; }
-  .exportRow { display: flex; gap: 8px; margin-top: 8px; }
+  .memo .playOne {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border-radius: 50%;
+    box-shadow: 0 4px 12px var(--accent-soft);
+  }
+  .memo .del { color: var(--danger); background: transparent; border-radius: 12px; }
+  #emptyMsg { font-size: 12.5px; color: var(--text-dim); text-align: center; padding: 14px 0; }
+  .exportRow { display: flex; gap: 8px; margin-top: 10px; }
   .exportRow button {
-    flex: 1; border: 1px solid var(--surface2); background: transparent;
-    color: var(--text-dim); border-radius: 10px; padding: 9px; font-size: 13px; cursor: pointer;
+    flex: 1;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 12px;
+    padding: 10px;
+    font-size: 12.5px;
+    cursor: pointer;
   }
   #toast {
-    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(80px);
-    background: var(--surface2); color: var(--text);
-    padding: 10px 18px; border-radius: 999px; font-size: 13px;
-    transition: transform .25s; z-index: 50;
-    box-shadow: 0 4px 16px #0006;
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%) translateY(90px);
+    background: var(--card-solid);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 20px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: transform .25s;
+    z-index: 50;
+    box-shadow: var(--shadow);
     white-space: nowrap;
   }
   #toast.show { transform: translateX(-50%) translateY(0); }
@@ -267,7 +418,7 @@
 <body>
 
 <header>
-  <h1>🥁 リズムメモ</h1>
+  <h1>🥁 <span class="grad">リズムメモ</span></h1>
   <div class="toggles">
     <div class="toggle on" id="soundToggle">🔊 音</div>
     <div class="toggle" id="vibToggle">📳 振動</div>
@@ -500,9 +651,11 @@
     recMeta = null;
     if (metroOn) {
       const beatMs = 60000 / metroBpm;
-      const last = recentBeats.filter(b => b.perf <= now).pop();
-      if (last) {
-        recMeta = { bpm: metroBpm, phase: (now - last.perf) % beatMs };
+      // nearest past beat, or the first scheduled one if tapping started
+      // before the metronome's first click
+      const b = recentBeats.filter(x => x.perf <= now).pop() || recentBeats[0];
+      if (b) {
+        recMeta = { bpm: metroBpm, phase: ((now - b.perf) % beatMs + beatMs) % beatMs };
       }
     }
     pad.classList.add("recording");
