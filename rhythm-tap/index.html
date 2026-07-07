@@ -174,6 +174,29 @@
   .speedRow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-dim); }
   .speedRow input[type=range] { flex: 1; accent-color: var(--accent); }
 
+  /* ---- score (sheet music) ---- */
+  #scoreWrap {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--surface2);
+    padding-top: 10px;
+  }
+  #scoreWrap.show { display: flex; }
+  .scoreCtrl { display: flex; align-items: center; gap: 5px; font-size: 13px; flex-wrap: wrap; }
+  .scoreCtrl button {
+    border: none; background: var(--surface2); color: var(--text);
+    border-radius: 8px; min-width: 36px; height: 32px; cursor: pointer; font-size: 13px;
+  }
+  .scoreCtrl #bpmShow { min-width: 58px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .scoreCtrl select {
+    margin-left: auto; background: var(--surface2); color: var(--text);
+    border: none; border-radius: 8px; padding: 7px 8px; font-size: 13px;
+  }
+  .scoreHint { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  #scoreScroll { overflow-x: auto; background: var(--surface2); border-radius: 8px; padding: 4px 0; }
+  #scoreSvg { color: var(--text); display: block; }
+
   /* ---- saved list ---- */
   #savedSection h2 { font-size: 14px; color: var(--text-dim); font-weight: 600; margin-bottom: 8px; }
   #savedList { display: flex; flex-direction: column; gap: 8px; max-height: 32vh; overflow-y: auto; }
@@ -245,8 +268,28 @@
   </div>
   <div class="row">
     <button class="btn primary" id="playBtn">▶ 再生</button>
+    <button class="btn" id="scoreBtn">🎼 楽譜</button>
     <button class="btn" id="saveBtn">💾 保存</button>
     <button class="btn" id="discardBtn">✕ 破棄</button>
+  </div>
+
+  <div id="scoreWrap">
+    <div class="scoreCtrl">
+      <button id="bpmHalf" title="テンポを半分に">÷2</button>
+      <button id="bpmMinus">−</button>
+      <span id="bpmShow">♩=120</span>
+      <button id="bpmPlus">＋</button>
+      <button id="bpmDouble" title="テンポを2倍に">×2</button>
+      <select id="divSel">
+        <option value="4">16分音符まで</option>
+        <option value="2">8分音符まで</option>
+      </select>
+    </div>
+    <div id="scoreScroll"><svg id="scoreSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="scoreHint">タップのタイミングから自動で音符に変換しています。リズムが合っていないと感じたら、テンポ(♩=)を調整してみてください。</div>
+    <div class="row">
+      <button class="btn" id="scorePng">⬇ 画像として保存</button>
+    </div>
   </div>
 </div>
 
@@ -450,13 +493,272 @@
     $("tlStats").textContent = `${take.notes.length}打 / ${fmtDur(take.total)}`;
     const bpm = estimateBpm(take.notes);
     $("tlBpm").textContent = bpm ? `テンポ目安: ♩≈${bpm}` : "";
+    $("scoreWrap").classList.remove("show");
     tlWrap.classList.add("show");
   }
   function hideTake() {
     tlWrap.classList.remove("show");
+    $("scoreWrap").classList.remove("show");
     stopPlayback();
     current = null;
   }
+
+  // ---------- score (sheet music) ----------
+  let scoreBpm = 120;
+  let scoreDiv = 4; // grid steps per beat: 4 = 16th notes, 2 = 8th notes
+
+  // search around the rough BPM for the tempo whose grid best fits the taps
+  function refineBpm(ns, rough) {
+    if (ns.length < 3) return rough;
+    const t0 = ns[0].t;
+    let best = rough, bestErr = Infinity;
+    const lo = Math.max(40, Math.round(rough * 0.8));
+    const hi = Math.min(240, Math.round(rough * 1.25));
+    for (let bpm = lo; bpm <= hi; bpm++) {
+      const step = 60000 / bpm / 4;
+      let err = 0;
+      for (const n of ns) {
+        const x = (n.t - t0) / step;
+        const dMs = Math.abs(x - Math.round(x)) * step;
+        err += dMs * dMs;
+      }
+      if (err < bestErr) { bestErr = err; best = bpm; }
+    }
+    return best;
+  }
+
+  // quantize taps onto the grid → sequence of {type:'note'|'rest', steps}
+  function transcribe(ns, bpm, div) {
+    const stepMs = 60000 / bpm / div;
+    const t0 = ns[0].t;
+    const ev = [];
+    let prev = -1;
+    for (const n of ns) {
+      let idx = Math.round((n.t - t0) / stepMs);
+      if (idx <= prev) idx = prev + 1;
+      ev.push({ idx, hold: Math.max(1, Math.min(Math.round(n.d / stepMs), div * 4)) });
+      prev = idx;
+    }
+    const items = [];
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      let gap = (i + 1 < ev.length ? ev[i + 1].idx : e.idx + e.hold) - e.idx;
+      gap = Math.min(gap, div * 8); // cap long pauses at 2 measures
+      let noteSteps = gap, restSteps = 0;
+      // taps are naturally short, so the interval to the next tap is the note
+      // value; insert a rest only for a clear pause (≥1 beat of silence)
+      if (gap - e.hold >= div && e.hold <= gap / 2) {
+        noteSteps = Math.max(e.hold, div / 2);
+        restSteps = gap - noteSteps;
+      }
+      items.push({ type: "note", steps: noteSteps });
+      if (restSteps) items.push({ type: "rest", steps: restSteps });
+    }
+    return items;
+  }
+
+  // note-value tables in grid steps (b: w=whole h=half q=quarter e=8th s=16th)
+  const NOTE_VALS = {
+    4: [{s:16,b:"w"},{s:12,b:"h",dots:1},{s:8,b:"h"},{s:6,b:"q",dots:1},{s:4,b:"q"},{s:3,b:"e",dots:1},{s:2,b:"e"},{s:1,b:"s"}],
+    2: [{s:8,b:"w"},{s:6,b:"h",dots:1},{s:4,b:"h"},{s:3,b:"q",dots:1},{s:2,b:"q"},{s:1,b:"e"}]
+  };
+  const REST_VALS = {
+    4: [{s:16,b:"w"},{s:8,b:"h"},{s:4,b:"q"},{s:2,b:"e"},{s:1,b:"s"}],
+    2: [{s:8,b:"w"},{s:4,b:"h"},{s:2,b:"q"},{s:1,b:"e"}]
+  };
+  function decompose(steps, table) {
+    const out = [];
+    while (steps > 0) {
+      const v = table.find(v => v.s <= steps);
+      out.push(v);
+      steps -= v.s;
+    }
+    return out;
+  }
+
+  // split items at barlines (4/4), tie notes across splits → array of measures
+  function toMeasures(items, div) {
+    const per = div * 4;
+    const measures = [];
+    let cur = [], pos = 0;
+    const push = g => {
+      cur.push(g); pos += g.steps;
+      if (pos % per === 0) { measures.push(cur); cur = []; }
+    };
+    for (const it of items) {
+      let remaining = it.steps;
+      while (remaining > 0) {
+        const room = per - (pos % per);
+        const chunk = Math.min(remaining, room);
+        const vals = decompose(chunk, it.type === "note" ? NOTE_VALS[div] : REST_VALS[div]);
+        vals.forEach((v, i) => push({
+          kind: it.type, base: v.b, dots: v.dots || 0, steps: v.s,
+          tie: it.type === "note" && (i < vals.length - 1 || remaining - chunk > 0)
+        }));
+        remaining -= chunk;
+      }
+    }
+    if (pos % per !== 0) {
+      decompose(per - (pos % per), REST_VALS[div])
+        .forEach(v => push({ kind: "rest", base: v.b, dots: 0, steps: v.s }));
+    }
+    if (cur.length) measures.push(cur);
+    return measures;
+  }
+
+  const GLYPH_W = { w: 58, h: 44, q: 32, e: 26, s: 22 };
+  const glyphW = g => GLYPH_W[g.base] + (g.dots ? 5 : 0);
+  const measureW = m => m.reduce((a, g) => a + glyphW(g), 0) + 14;
+
+  function drawGlyph(g, cx, y0) {
+    let s = "";
+    if (g.kind === "note") {
+      if (g.base === "w") {
+        s += `<ellipse cx="${cx}" cy="${y0}" rx="6.5" ry="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/>`;
+      } else {
+        const hollow = g.base === "h";
+        s += `<ellipse cx="${cx}" cy="${y0}" rx="5.5" ry="4" transform="rotate(-18 ${cx} ${y0})" ${hollow ? 'fill="none" stroke="currentColor" stroke-width="1.6"' : 'fill="currentColor"'}/>`;
+        const sx = cx + 5, ty = y0 - 30;
+        s += `<line x1="${sx}" y1="${y0 - 1.5}" x2="${sx}" y2="${ty}" stroke="currentColor" stroke-width="1.4"/>`;
+        const flags = g.base === "e" ? 1 : g.base === "s" ? 2 : 0;
+        for (let i = 0; i < flags; i++) {
+          const fy = ty + i * 7;
+          s += `<path d="M ${sx} ${fy} C ${sx + 8} ${fy + 6}, ${sx + 7} ${fy + 12}, ${sx + 3} ${fy + 17}" fill="none" stroke="currentColor" stroke-width="2"/>`;
+        }
+      }
+    } else {
+      if (g.base === "w") {
+        s += `<rect x="${cx - 6}" y="${y0}" width="12" height="5" fill="currentColor"/>`;
+      } else if (g.base === "h") {
+        s += `<rect x="${cx - 6}" y="${y0 - 5}" width="12" height="5" fill="currentColor"/>`;
+      } else if (g.base === "q") {
+        s += `<path d="M ${cx - 2} ${y0 - 11} L ${cx + 3} ${y0 - 5} L ${cx - 2} ${y0} L ${cx + 3} ${y0 + 5} Q ${cx - 4} ${y0 + 4} ${cx - 0.5} ${y0 + 10}" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>`;
+      } else {
+        // 8th / 16th rest: blob(s) + slash
+        s += `<circle cx="${cx - 3}" cy="${y0 - 5}" r="2" fill="currentColor"/>`;
+        s += `<path d="M ${cx - 3} ${y0 - 4} Q ${cx} ${y0 - 2} ${cx + 3} ${y0 - 7}" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+        if (g.base === "s") {
+          s += `<circle cx="${cx - 4}" cy="${y0 + 1}" r="2" fill="currentColor"/>`;
+          s += `<path d="M ${cx - 4} ${y0 + 2} Q ${cx - 1} ${y0 + 4} ${cx + 1.2} ${y0}" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+          s += `<line x1="${cx + 3}" y1="${y0 - 7}" x2="${cx - 2}" y2="${y0 + 11}" stroke="currentColor" stroke-width="1.6"/>`;
+        } else {
+          s += `<line x1="${cx + 3}" y1="${y0 - 7}" x2="${cx - 2}" y2="${y0 + 8}" stroke="currentColor" stroke-width="1.6"/>`;
+        }
+      }
+    }
+    if (g.dots) s += `<circle cx="${cx + 10}" cy="${y0 - 4}" r="1.8" fill="currentColor"/>`;
+    return s;
+  }
+
+  const tieArc = (x1, x2, y) =>
+    `<path d="M ${x1} ${y} Q ${(x1 + x2) / 2} ${y + 7} ${x2} ${y}" fill="none" stroke="currentColor" stroke-width="1.3"/>`;
+
+  function renderScore() {
+    if (!current) return;
+    $("bpmShow").textContent = "♩=" + scoreBpm;
+    const items = transcribe(current.notes, scoreBpm, scoreDiv);
+    const measures = toMeasures(items, scoreDiv);
+
+    const scroll = $("scoreScroll");
+    const maxW = Math.max((scroll.clientWidth || 480) - 12, 280);
+    const indent = 40, margin = 14;
+
+    // flow measures into lines, wrapping only at barlines
+    const lines = [];
+    let cur = [], w = indent;
+    for (const m of measures) {
+      const mw = measureW(m);
+      if (cur.length && w + mw > maxW) { lines.push(cur); cur = []; w = margin; }
+      cur.push(m); w += mw;
+    }
+    if (cur.length) lines.push(cur);
+
+    const lineH = 72, top = 26;
+    const height = top + lines.length * lineH;
+    let svg = `<text x="6" y="16" font-family="sans-serif" font-size="13" font-weight="600" fill="currentColor">♩ = ${scoreBpm}</text>`;
+    let pendingTie = null; // {x, y0, line}
+
+    lines.forEach((ms, li) => {
+      const y0 = top + li * lineH + 30;
+      let x = li === 0 ? indent : margin;
+      const lineEnd = x + ms.reduce((a, m) => a + measureW(m), 0);
+      svg += `<line x1="4" y1="${y0}" x2="${lineEnd}" y2="${y0}" stroke="currentColor" stroke-width="1"/>`;
+      if (li === 0) {
+        svg += `<text x="14" y="${y0 - 2}" font-family="serif" font-size="15" font-weight="700" fill="currentColor">4</text>`;
+        svg += `<text x="14" y="${y0 + 13}" font-family="serif" font-size="15" font-weight="700" fill="currentColor">4</text>`;
+      }
+      ms.forEach((m, mi) => {
+        for (const g of m) {
+          const cx = x + 9;
+          if (g.kind === "note" && pendingTie) {
+            if (pendingTie.line === li) {
+              svg += tieArc(pendingTie.x + 5, cx - 5, y0 + 6);
+            } else {
+              svg += tieArc(pendingTie.x + 5, pendingTie.lineEnd - 2, pendingTie.y0 + 6);
+              svg += tieArc(margin - 6, cx - 5, y0 + 6);
+            }
+            pendingTie = null;
+          }
+          svg += drawGlyph(g, cx, y0);
+          if (g.tie) pendingTie = { x: cx, y0, line: li, lineEnd };
+          x += glyphW(g);
+        }
+        const isLast = li === lines.length - 1 && mi === ms.length - 1;
+        if (isLast) {
+          svg += `<line x1="${x + 4}" y1="${y0 - 12}" x2="${x + 4}" y2="${y0 + 12}" stroke="currentColor" stroke-width="1"/>`;
+          svg += `<line x1="${x + 8}" y1="${y0 - 12}" x2="${x + 8}" y2="${y0 + 12}" stroke="currentColor" stroke-width="3"/>`;
+        } else {
+          svg += `<line x1="${x + 5}" y1="${y0 - 12}" x2="${x + 5}" y2="${y0 + 12}" stroke="currentColor" stroke-width="1"/>`;
+        }
+        x += 14;
+      });
+    });
+
+    const el = $("scoreSvg");
+    el.setAttribute("width", maxW);
+    el.setAttribute("height", height);
+    el.setAttribute("viewBox", `0 0 ${maxW} ${height}`);
+    el.innerHTML = svg;
+  }
+
+  $("scoreBtn").addEventListener("click", () => {
+    if (!current) return;
+    const wrap = $("scoreWrap");
+    if (wrap.classList.contains("show")) { wrap.classList.remove("show"); return; }
+    scoreBpm = refineBpm(current.notes, estimateBpm(current.notes) || 120);
+    wrap.classList.add("show");
+    renderScore();
+  });
+  $("bpmHalf").addEventListener("click", () => { scoreBpm = Math.max(30, Math.round(scoreBpm / 2)); renderScore(); });
+  $("bpmDouble").addEventListener("click", () => { scoreBpm = Math.min(300, scoreBpm * 2); renderScore(); });
+  $("bpmMinus").addEventListener("click", () => { scoreBpm = Math.max(30, scoreBpm - 5); renderScore(); });
+  $("bpmPlus").addEventListener("click", () => { scoreBpm = Math.min(300, scoreBpm + 5); renderScore(); });
+  $("divSel").addEventListener("change", e => { scoreDiv = +e.target.value; renderScore(); });
+
+  $("scorePng").addEventListener("click", () => {
+    const el = $("scoreSvg");
+    const w = +el.getAttribute("width"), h = +el.getAttribute("height");
+    if (!w || !h) return;
+    const src = el.outerHTML.replace(/currentColor/g, "#111");
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = w * 2; c.height = h * 2;
+      const g2 = c.getContext("2d");
+      g2.fillStyle = "#fff";
+      g2.fillRect(0, 0, c.width, c.height);
+      g2.scale(2, 2);
+      g2.drawImage(img, 0, 0);
+      c.toBlob(b => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(b);
+        a.download = "rhythm-score.png";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+  });
 
   // ---------- playback ----------
   const speedInput = $("speed"), speedVal = $("speedVal");
