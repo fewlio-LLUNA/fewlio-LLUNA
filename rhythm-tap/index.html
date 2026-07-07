@@ -64,6 +64,36 @@
   }
   .toggle.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 
+  /* ---- metronome ---- */
+  #metroPanel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+  }
+  #metroToggle {
+    border: none; background: var(--surface2); color: var(--text);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  #metroToggle.on { background: var(--accent); color: #fff; }
+  .metroBpmCtrl { display: flex; align-items: center; gap: 4px; }
+  .metroBpmCtrl button {
+    border: none; background: var(--surface2); color: var(--text);
+    border-radius: 8px; width: 34px; height: 34px; font-size: 15px; cursor: pointer;
+  }
+  #metroBpmShow { min-width: 62px; text-align: center; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+  #beatDots { display: flex; gap: 7px; margin-left: auto; }
+  #beatDots i {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--surface2);
+    transition: transform .09s, background .09s;
+  }
+  #beatDots i.hit { background: var(--accent); transform: scale(1.4); }
+  #beatDots i.accent.hit { background: var(--danger); }
+
   /* ---- tap pad ---- */
   #pad {
     position: relative;
@@ -244,6 +274,16 @@
   </div>
 </header>
 
+<div id="metroPanel">
+  <button id="metroToggle">▶ メトロノーム</button>
+  <div class="metroBpmCtrl">
+    <button id="metroMinus">−</button>
+    <span id="metroBpmShow">♩=120</span>
+    <button id="metroPlus">＋</button>
+  </div>
+  <div id="beatDots"><i class="accent"></i><i></i><i></i><i></i></div>
+</div>
+
 <div id="pad">
   <div id="recDot">REC</div>
   <div id="elapsed"></div>
@@ -375,11 +415,96 @@
     if (vibOn) vibrate(30);
   });
 
+  // ---------- metronome ----------
+  let metroOn = false;
+  let metroBpm = 120;
+  let metroTimer = null;
+  let nextBeatAudioT = 0;
+  let beatCount = 0;
+  let recentBeats = []; // {perf: performance.now()-ms of the beat, count}
+  const beatDots = document.querySelectorAll("#beatDots i");
+
+  function clickSound(when, accent) {
+    if (!soundOn) return;
+    const ctx = ensureAudio();
+    const t = Math.max(when, ctx.currentTime);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = accent ? 1400 : 900;
+    gain.gain.setValueAtTime(accent ? 0.25 : 0.15, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.06);
+  }
+
+  function flashBeat(i) {
+    beatDots.forEach(d => d.classList.remove("hit"));
+    if (beatDots[i]) {
+      beatDots[i].classList.add("hit");
+      setTimeout(() => beatDots[i].classList.remove("hit"), 110);
+    }
+  }
+
+  function metroTick() {
+    const ctx = ensureAudio();
+    const interval = 60 / metroBpm;
+    while (nextBeatAudioT < ctx.currentTime + 0.12) {
+      const bc = beatCount;
+      clickSound(nextBeatAudioT, bc % 4 === 0);
+      const perfT = performance.now() + (nextBeatAudioT - ctx.currentTime) * 1000;
+      recentBeats.push({ perf: perfT, count: bc });
+      if (recentBeats.length > 12) recentBeats.shift();
+      setTimeout(() => { if (metroOn) flashBeat(bc % 4); },
+        Math.max(perfT - performance.now(), 0));
+      beatCount++;
+      nextBeatAudioT += interval;
+    }
+  }
+
+  function startMetro() {
+    const ctx = ensureAudio();
+    metroOn = true;
+    beatCount = 0;
+    recentBeats = [];
+    nextBeatAudioT = ctx.currentTime + 0.08;
+    metroTimer = setInterval(metroTick, 25);
+    $("metroToggle").classList.add("on");
+    $("metroToggle").textContent = "■ メトロノーム";
+  }
+  function stopMetro() {
+    metroOn = false;
+    clearInterval(metroTimer);
+    beatDots.forEach(d => d.classList.remove("hit"));
+    $("metroToggle").classList.remove("on");
+    $("metroToggle").textContent = "▶ メトロノーム";
+  }
+  $("metroToggle").addEventListener("click", () => metroOn ? stopMetro() : startMetro());
+
+  function setMetroBpm(v) {
+    if (recording) return; // keep the grid captured at recording start valid
+    metroBpm = Math.min(240, Math.max(40, v));
+    $("metroBpmShow").textContent = "♩=" + metroBpm;
+  }
+  $("metroMinus").addEventListener("click", () => setMetroBpm(metroBpm - 5));
+  $("metroPlus").addEventListener("click", () => setMetroBpm(metroBpm + 5));
+
   // ---------- recording ----------
+  let recMeta = null; // {bpm, phase} when recorded with metronome
+
   function startRecording(now) {
     recording = true;
     recStart = now;
     notes = [];
+    recMeta = null;
+    if (metroOn) {
+      const beatMs = 60000 / metroBpm;
+      const last = recentBeats.filter(b => b.perf <= now).pop();
+      if (last) {
+        recMeta = { bpm: metroBpm, phase: (now - last.perf) % beatMs };
+      }
+    }
     pad.classList.add("recording");
     padLabel.textContent = "記録中…";
     padSub.textContent = "リズムに合わせてタップ / 長押し";
@@ -409,6 +534,7 @@
     const last = notes[notes.length - 1];
     const total = last.t + Math.max(last.d, 100) + 300; // small tail
     current = { notes: notes.map(n => ({ t: n.t, d: Math.max(n.d, 30) })), total };
+    if (recMeta) { current.bpm = recMeta.bpm; current.phase = recMeta.phase; }
     showTake(current);
   }
 
@@ -491,8 +617,12 @@
   function showTake(take) {
     renderTimeline(take);
     $("tlStats").textContent = `${take.notes.length}打 / ${fmtDur(take.total)}`;
-    const bpm = estimateBpm(take.notes);
-    $("tlBpm").textContent = bpm ? `テンポ目安: ♩≈${bpm}` : "";
+    if (take.bpm) {
+      $("tlBpm").textContent = `♩=${take.bpm}(メトロノーム)`;
+    } else {
+      const bpm = estimateBpm(take.notes);
+      $("tlBpm").textContent = bpm ? `テンポ目安: ♩≈${bpm}` : "";
+    }
     $("scoreWrap").classList.remove("show");
     tlWrap.classList.add("show");
   }
@@ -528,18 +658,25 @@
   }
 
   // quantize taps onto the grid → sequence of {type:'note'|'rest', steps}
-  function transcribe(ns, bpm, div) {
+  // phaseMs: offset of the first tap from its metronome beat (0 = no metronome)
+  function transcribe(ns, bpm, div, phaseMs) {
     const stepMs = 60000 / bpm / div;
     const t0 = ns[0].t;
+    const phase = phaseMs || 0;
     const ev = [];
     let prev = -1;
     for (const n of ns) {
-      let idx = Math.round((n.t - t0) / stepMs);
+      let idx = Math.round((n.t - t0 + phase) / stepMs);
       if (idx <= prev) idx = prev + 1;
       ev.push({ idx, hold: Math.max(1, Math.min(Math.round(n.d / stepMs), div * 4)) });
       prev = idx;
     }
+    // align the score start to the beat containing the first note; anything
+    // before the first note within that beat becomes a leading rest
+    const base = Math.floor(ev[0].idx / div) * div;
+    for (const e of ev) e.idx -= base;
     const items = [];
+    if (ev[0].idx > 0) items.push({ type: "rest", steps: ev[0].idx });
     for (let i = 0; i < ev.length; i++) {
       const e = ev[i];
       let gap = (i + 1 < ev.length ? ev[i + 1].idx : e.idx + e.hold) - e.idx;
@@ -656,7 +793,9 @@
   function renderScore() {
     if (!current) return;
     $("bpmShow").textContent = "♩=" + scoreBpm;
-    const items = transcribe(current.notes, scoreBpm, scoreDiv);
+    // the metronome phase is only meaningful on the metronome's own grid
+    const phase = current.bpm && scoreBpm === current.bpm ? current.phase : 0;
+    const items = transcribe(current.notes, scoreBpm, scoreDiv, phase);
     const measures = toMeasures(items, scoreDiv);
 
     const scroll = $("scoreScroll");
@@ -725,7 +864,7 @@
     if (!current) return;
     const wrap = $("scoreWrap");
     if (wrap.classList.contains("show")) { wrap.classList.remove("show"); return; }
-    scoreBpm = refineBpm(current.notes, estimateBpm(current.notes) || 120);
+    scoreBpm = current.bpm || refineBpm(current.notes, estimateBpm(current.notes) || 120);
     wrap.classList.add("show");
     renderScore();
   });
@@ -827,13 +966,15 @@
     const def = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} のリズム`;
     const name = (prompt("名前をつけて保存", def) || "").trim() || def;
     const list = loadMemos();
-    list.unshift({
+    const memo = {
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       name,
       createdAt: now.toISOString(),
       notes: current.notes,
       total: current.total
-    });
+    };
+    if (current.bpm) { memo.bpm = current.bpm; memo.phase = current.phase; }
+    list.unshift(memo);
     saveMemos(list);
     renderSaved();
     hideTake();
@@ -848,17 +989,17 @@
     for (const m of list) {
       const row = document.createElement("div");
       row.className = "memo";
-      const bpm = estimateBpm(m.notes);
+      const bpm = m.bpm || estimateBpm(m.notes);
       row.innerHTML = `
         <div class="meta">
           <div class="name"></div>
-          <div class="sub">${m.notes.length}打 / ${fmtDur(m.total)}${bpm ? " / ♩≈" + bpm : ""}</div>
+          <div class="sub">${m.notes.length}打 / ${fmtDur(m.total)}${bpm ? ` / ♩${m.bpm ? "=" : "≈"}` + bpm : ""}</div>
         </div>
         <button class="playOne" title="再生">▶</button>
         <button class="del" title="削除">🗑</button>`;
       row.querySelector(".name").textContent = m.name;
       row.querySelector(".playOne").addEventListener("click", () => {
-        current = { notes: m.notes, total: m.total };
+        current = { notes: m.notes, total: m.total, bpm: m.bpm, phase: m.phase };
         showTake(current);
         play(current);
       });
