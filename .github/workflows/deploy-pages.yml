@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-      # 開発ブランチからも即デプロイ(mainにマージしたらこの行は削除してOK)
-      - claude/rhythm-recorder-app-9v4zsx
     paths:
       - "rhythm-tap/**"
       - ".github/workflows/deploy-pages.yml"
