@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#12121a">
+<title>Rhythm Tap Memo — リズムメモ</title>
+<style>
+  :root {
+    --bg: #12121a;
+    --surface: #1c1c28;
+    --surface2: #262636;
+    --text: #ececf4;
+    --text-dim: #9a9ab0;
+    --accent: #7c6cf6;
+    --accent-soft: #7c6cf633;
+    --danger: #f66c8a;
+    --ok: #5fd4a2;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f4f8;
+      --surface: #ffffff;
+      --surface2: #ebebf2;
+      --text: #22222e;
+      --text-dim: #6a6a80;
+      --accent: #6a58e8;
+      --accent-soft: #6a58e822;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 12px;
+    gap: 10px;
+    overscroll-behavior: none;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: .02em; }
+  header .toggles { display: flex; gap: 6px; }
+  .toggle {
+    border: 1px solid var(--surface2);
+    background: var(--surface);
+    color: var(--text-dim);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .toggle.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+  /* ---- tap pad ---- */
+  #pad {
+    position: relative;
+    flex: 1;
+    min-height: 220px;
+    background: var(--surface);
+    border: 2px solid var(--surface2);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background .08s, border-color .15s;
+    overflow: hidden;
+  }
+  #pad.recording { border-color: var(--danger); }
+  #pad.pressed { background: var(--accent-soft); }
+  #padLabel { font-size: 18px; font-weight: 600; pointer-events: none; }
+  #padSub { font-size: 13px; color: var(--text-dim); pointer-events: none; text-align: center; line-height: 1.6; padding: 0 16px;}
+  #recDot {
+    position: absolute; top: 12px; left: 14px;
+    display: none; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--danger); font-weight: 600;
+    pointer-events: none;
+  }
+  #pad.recording #recDot { display: flex; }
+  #recDot::before {
+    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--danger);
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 50% { opacity: .25; } }
+  #elapsed {
+    position: absolute; top: 12px; right: 14px;
+    font-size: 13px; color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: .35;
+    transform: translate(-50%, -50%) scale(0);
+    animation: ripple .5s ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes ripple { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+
+  /* ---- controls ---- */
+  .row { display: flex; gap: 8px; }
+  button.btn {
+    flex: 1;
+    border: none;
+    border-radius: var(--radius);
+    padding: 14px 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--surface2);
+    color: var(--text);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  button.btn:disabled { opacity: .35; cursor: default; }
+  button.btn.primary { background: var(--accent); color: #fff; }
+  button.btn.danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+
+  /* ---- timeline ---- */
+  #timelineWrap {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 12px;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #timelineWrap.show { display: flex; }
+  #timelineInfo { font-size: 13px; color: var(--text-dim); display: flex; justify-content: space-between; }
+  #timeline {
+    position: relative;
+    height: 44px;
+    background: var(--surface2);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  #timeline .note {
+    position: absolute;
+    top: 8px; bottom: 8px;
+    min-width: 5px;
+    border-radius: 4px;
+    background: var(--accent);
+    opacity: .85;
+    transition: background .05s;
+  }
+  #timeline .note.hit { background: var(--ok); }
+  #timeline #cursor {
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    background: var(--text);
+    opacity: .6;
+    display: none;
+  }
+  .speedRow { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-dim); }
+  .speedRow input[type=range] { flex: 1; accent-color: var(--accent); }
+
+  /* ---- score (sheet music) ---- */
+  #scoreWrap {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--surface2);
+    padding-top: 10px;
+  }
+  #scoreWrap.show { display: flex; }
+  .scoreCtrl { display: flex; align-items: center; gap: 5px; font-size: 13px; flex-wrap: wrap; }
+  .scoreCtrl button {
+    border: none; background: var(--surface2); color: var(--text);
+    border-radius: 8px; min-width: 36px; height: 32px; cursor: pointer; font-size: 13px;
+  }
+  .scoreCtrl #bpmShow { min-width: 58px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .scoreCtrl select {
+    margin-left: auto; background: var(--surface2); color: var(--text);
+    border: none; border-radius: 8px; padding: 7px 8px; font-size: 13px;
+  }
+  .scoreHint { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  #scoreScroll { overflow-x: auto; background: var(--surface2); border-radius: 8px; padding: 4px 0; }
+  #scoreSvg { color: var(--text); display: block; }
+
+  /* ---- saved list ---- */
+  #savedSection h2 { font-size: 14px; color: var(--text-dim); font-weight: 600; margin-bottom: 8px; }
+  #savedList { display: flex; flex-direction: column; gap: 8px; max-height: 32vh; overflow-y: auto; }
+  .memo {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .memo .meta { flex: 1; min-width: 0; }
+  .memo .name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .memo .sub { font-size: 12px; color: var(--text-dim); }
+  .memo button {
+    border: none; background: var(--surface2); color: var(--text);
+    border-radius: 8px; width: 38px; height: 38px; font-size: 16px; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .memo button.del { color: var(--danger); background: transparent; }
+  #emptyMsg { font-size: 13px; color: var(--text-dim); text-align: center; padding: 12px 0; }
+  .exportRow { display: flex; gap: 8px; margin-top: 8px; }
+  .exportRow button {
+    flex: 1; border: 1px solid var(--surface2); background: transparent;
+    color: var(--text-dim); border-radius: 10px; padding: 9px; font-size: 13px; cursor: pointer;
+  }
+  #toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--surface2); color: var(--text);
+    padding: 10px 18px; border-radius: 999px; font-size: 13px;
+    transition: transform .25s; z-index: 50;
+    box-shadow: 0 4px 16px #0006;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🥁 リズムメモ</h1>
+  <div class="toggles">
+    <div class="toggle on" id="soundToggle">🔊 音</div>
+    <div class="toggle" id="vibToggle">📳 振動</div>
+  </div>
+</header>
+
+<div id="pad">
+  <div id="recDot">REC</div>
+  <div id="elapsed"></div>
+  <div id="padLabel">ここをタップ</div>
+  <div id="padSub">最初のタップで記録がはじまります。<br>思いついたリズムのとおりに叩いてください。<br>長押しすると「長い音」として残ります。</div>
+</div>
+
+<div class="row">
+  <button class="btn danger" id="stopBtn" disabled>■ 記録おわり</button>
+</div>
+
+<div id="timelineWrap">
+  <div id="timelineInfo">
+    <span id="tlStats"></span>
+    <span id="tlBpm"></span>
+  </div>
+  <div id="timeline"><div id="cursor"></div></div>
+  <div class="speedRow">
+    <span>再生速度</span>
+    <input type="range" id="speed" min="50" max="150" value="100" step="5">
+    <span id="speedVal">1.0x</span>
+  </div>
+  <div class="row">
+    <button class="btn primary" id="playBtn">▶ 再生</button>
+    <button class="btn" id="scoreBtn">🎼 楽譜</button>
+    <button class="btn" id="saveBtn">💾 保存</button>
+    <button class="btn" id="discardBtn">✕ 破棄</button>
+  </div>
+
+  <div id="scoreWrap">
+    <div class="scoreCtrl">
+      <button id="bpmHalf" title="テンポを半分に">÷2</button>
+      <button id="bpmMinus">−</button>
+      <span id="bpmShow">♩=120</span>
+      <button id="bpmPlus">＋</button>
+      <button id="bpmDouble" title="テンポを2倍に">×2</button>
+      <select id="divSel">
+        <option value="4">16分音符まで</option>
+        <option value="2">8分音符まで</option>
+      </select>
+    </div>
+    <div id="scoreScroll"><svg id="scoreSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="scoreHint">タップのタイミングから自動で音符に変換しています。リズムが合っていないと感じたら、テンポ(♩=)を調整してみてください。</div>
+    <div class="row">
+      <button class="btn" id="scorePng">⬇ 画像として保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="savedSection">
+  <h2>保存したリズム</h2>
+  <div id="savedList"></div>
+  <div id="emptyMsg">まだ保存されたリズムはありません</div>
+  <div class="exportRow">
+    <button id="exportBtn">⬇ 全部書き出し (JSON)</button>
+    <button id="importBtn">⬆ 読み込み</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- state ----------
+  const LS_KEY = "rhythm-tap-memos-v1";
+  let recording = false;
+  let recStart = 0;          // performance.now() at first tap
+  let notes = [];            // {t: onset ms, d: duration ms}
+  let activePointers = new Map(); // pointerId -> note index
+  let elapsedTimer = null;
+  let current = null;        // finished take: {notes, total}
+  let playToken = 0;         // increments to cancel playback
+  let audioCtx = null;
+
+  const $ = id => document.getElementById(id);
+  const pad = $("pad"), padLabel = $("padLabel"), padSub = $("padSub");
+  const stopBtn = $("stopBtn"), elapsedEl = $("elapsed");
+  const tlWrap = $("timelineWrap"), tl = $("timeline"), cursor = $("cursor");
+  const soundToggle = $("soundToggle"), vibToggle = $("vibToggle");
+
+  let soundOn = true;
+  let vibOn = "vibrate" in navigator;
+  vibToggle.classList.toggle("on", vibOn);
+  if (!("vibrate" in navigator)) vibToggle.style.display = "none";
+
+  // ---------- audio ----------
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  // short percussive "tap" sound; longer notes sustain a soft tone
+  function beep(when, durMs) {
+    if (!soundOn) return;
+    const ctx = ensureAudio();
+    const t = Math.max(when, ctx.currentTime);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const sustain = Math.min(Math.max(durMs / 1000, 0.06), 1.2);
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(660, t);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.05);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.5, t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.12, t + 0.06);
+    gain.gain.setValueAtTime(0.12, t + Math.max(sustain - 0.05, 0.06));
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + sustain);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + sustain + 0.05);
+  }
+  function vibrate(ms) {
+    if (vibOn && navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  // ---------- toggles ----------
+  soundToggle.addEventListener("click", () => {
+    soundOn = !soundOn;
+    soundToggle.classList.toggle("on", soundOn);
+    soundToggle.textContent = soundOn ? "🔊 音" : "🔇 消音";
+    if (soundOn) ensureAudio();
+  });
+  vibToggle.addEventListener("click", () => {
+    vibOn = !vibOn;
+    vibToggle.classList.toggle("on", vibOn);
+    if (vibOn) vibrate(30);
+  });
+
+  // ---------- recording ----------
+  function startRecording(now) {
+    recording = true;
+    recStart = now;
+    notes = [];
+    pad.classList.add("recording");
+    padLabel.textContent = "記録中…";
+    padSub.textContent = "リズムに合わせてタップ / 長押し";
+    stopBtn.disabled = false;
+    hideTake();
+    elapsedTimer = setInterval(() => {
+      elapsedEl.textContent = ((performance.now() - recStart) / 1000).toFixed(1) + "s";
+    }, 100);
+  }
+
+  function stopRecording() {
+    if (!recording) return;
+    recording = false;
+    clearInterval(elapsedTimer);
+    elapsedEl.textContent = "";
+    pad.classList.remove("recording");
+    padLabel.textContent = "ここをタップ";
+    padSub.innerHTML = "最初のタップで記録がはじまります。<br>思いついたリズムのとおりに叩いてください。<br>長押しすると「長い音」として残ります。";
+    stopBtn.disabled = true;
+    // close any still-held notes
+    const now = performance.now();
+    for (const idx of activePointers.values()) {
+      if (notes[idx] && notes[idx].d < 0) notes[idx].d = Math.round(now - recStart - notes[idx].t);
+    }
+    activePointers.clear();
+    if (notes.length === 0) return;
+    const last = notes[notes.length - 1];
+    const total = last.t + Math.max(last.d, 100) + 300; // small tail
+    current = { notes: notes.map(n => ({ t: n.t, d: Math.max(n.d, 30) })), total };
+    showTake(current);
+  }
+
+  pad.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    ensureAudio(); // unlock audio inside user gesture (iOS)
+    const now = performance.now();
+    if (!recording) startRecording(now);
+    const t = Math.round(now - recStart);
+    notes.push({ t, d: -1 });
+    activePointers.set(e.pointerId, notes.length - 1);
+    pad.classList.add("pressed");
+    beep(0, 60);
+    vibrate(15);
+    // ripple
+    const r = document.createElement("div");
+    r.className = "ripple";
+    const rect = pad.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 0.5;
+    r.style.width = r.style.height = size + "px";
+    r.style.left = (e.clientX - rect.left) + "px";
+    r.style.top = (e.clientY - rect.top) + "px";
+    pad.appendChild(r);
+    setTimeout(() => r.remove(), 550);
+  });
+
+  function releasePointer(e) {
+    const idx = activePointers.get(e.pointerId);
+    if (idx === undefined) return;
+    activePointers.delete(e.pointerId);
+    if (recording && notes[idx]) {
+      notes[idx].d = Math.round(performance.now() - recStart - notes[idx].t);
+    }
+    if (activePointers.size === 0) pad.classList.remove("pressed");
+  }
+  window.addEventListener("pointerup", releasePointer);
+  window.addEventListener("pointercancel", releasePointer);
+  pad.addEventListener("contextmenu", e => e.preventDefault());
+
+  // space key on desktop
+  window.addEventListener("keydown", e => {
+    if (e.code === "Space" && !e.repeat && e.target === document.body) {
+      e.preventDefault();
+      pad.dispatchEvent(new PointerEvent("pointerdown", { pointerId: -99, clientX: 0, clientY: 0 }));
+    }
+  });
+  window.addEventListener("keyup", e => {
+    if (e.code === "Space") releasePointer({ pointerId: -99 });
+  });
+
+  stopBtn.addEventListener("click", stopRecording);
+
+  // ---------- take preview ----------
+  function fmtDur(ms) { return (ms / 1000).toFixed(1) + "秒"; }
+
+  function estimateBpm(ns) {
+    if (ns.length < 3) return null;
+    const iois = [];
+    for (let i = 1; i < ns.length; i++) iois.push(ns[i].t - ns[i - 1].t);
+    iois.sort((a, b) => a - b);
+    let med = iois[Math.floor(iois.length / 2)];
+    if (med <= 0) return null;
+    let bpm = 60000 / med;
+    while (bpm > 200) bpm /= 2;
+    while (bpm < 50) bpm *= 2;
+    return Math.round(bpm);
+  }
+
+  function renderTimeline(take) {
+    tl.querySelectorAll(".note").forEach(el => el.remove());
+    for (const n of take.notes) {
+      const el = document.createElement("div");
+      el.className = "note";
+      el.style.left = (n.t / take.total * 100) + "%";
+      el.style.width = Math.max(n.d / take.total * 100, 1.2) + "%";
+      tl.appendChild(el);
+    }
+  }
+
+  function showTake(take) {
+    renderTimeline(take);
+    $("tlStats").textContent = `${take.notes.length}打 / ${fmtDur(take.total)}`;
+    const bpm = estimateBpm(take.notes);
+    $("tlBpm").textContent = bpm ? `テンポ目安: ♩≈${bpm}` : "";
+    $("scoreWrap").classList.remove("show");
+    tlWrap.classList.add("show");
+  }
+  function hideTake() {
+    tlWrap.classList.remove("show");
+    $("scoreWrap").classList.remove("show");
+    stopPlayback();
+    current = null;
+  }
+
+  // ---------- score (sheet music) ----------
+  let scoreBpm = 120;
+  let scoreDiv = 4; // grid steps per beat: 4 = 16th notes, 2 = 8th notes
+
+  // search around the rough BPM for the tempo whose grid best fits the taps
+  function refineBpm(ns, rough) {
+    if (ns.length < 3) return rough;
+    const t0 = ns[0].t;
+    let best = rough, bestErr = Infinity;
+    const lo = Math.max(40, Math.round(rough * 0.8));
+    const hi = Math.min(240, Math.round(rough * 1.25));
+    for (let bpm = lo; bpm <= hi; bpm++) {
+      const step = 60000 / bpm / 4;
+      let err = 0;
+      for (const n of ns) {
+        const x = (n.t - t0) / step;
+        const dMs = Math.abs(x - Math.round(x)) * step;
+        err += dMs * dMs;
+      }
+      if (err < bestErr) { bestErr = err; best = bpm; }
+    }
+    return best;
+  }
+
+  // quantize taps onto the grid → sequence of {type:'note'|'rest', steps}
+  function transcribe(ns, bpm, div) {
+    const stepMs = 60000 / bpm / div;
+    const t0 = ns[0].t;
+    const ev = [];
+    let prev = -1;
+    for (const n of ns) {
+      let idx = Math.round((n.t - t0) / stepMs);
+      if (idx <= prev) idx = prev + 1;
+      ev.push({ idx, hold: Math.max(1, Math.min(Math.round(n.d / stepMs), div * 4)) });
+      prev = idx;
+    }
+    const items = [];
+    for (let i = 0; i < ev.length; i++) {
+      const e = ev[i];
+      let gap = (i + 1 < ev.length ? ev[i + 1].idx : e.idx + e.hold) - e.idx;
+      gap = Math.min(gap, div * 8); // cap long pauses at 2 measures
+      let noteSteps = gap, restSteps = 0;
+      // taps are naturally short, so the interval to the next tap is the note
+      // value; insert a rest only for a clear pause (≥1 beat of silence)
+      if (gap - e.hold >= div && e.hold <= gap / 2) {
+        noteSteps = Math.max(e.hold, div / 2);
+        restSteps = gap - noteSteps;
+      }
+      items.push({ type: "note", steps: noteSteps });
+      if (restSteps) items.push({ type: "rest", steps: restSteps });
+    }
+    return items;
+  }
+
+  // note-value tables in grid steps (b: w=whole h=half q=quarter e=8th s=16th)
+  const NOTE_VALS = {
+    4: [{s:16,b:"w"},{s:12,b:"h",dots:1},{s:8,b:"h"},{s:6,b:"q",dots:1},{s:4,b:"q"},{s:3,b:"e",dots:1},{s:2,b:"e"},{s:1,b:"s"}],
+    2: [{s:8,b:"w"},{s:6,b:"h",dots:1},{s:4,b:"h"},{s:3,b:"q",dots:1},{s:2,b:"q"},{s:1,b:"e"}]
+  };
+  const REST_VALS = {
+    4: [{s:16,b:"w"},{s:8,b:"h"},{s:4,b:"q"},{s:2,b:"e"},{s:1,b:"s"}],
+    2: [{s:8,b:"w"},{s:4,b:"h"},{s:2,b:"q"},{s:1,b:"e"}]
+  };
+  function decompose(steps, table) {
+    const out = [];
+    while (steps > 0) {
+      const v = table.find(v => v.s <= steps);
+      out.push(v);
+      steps -= v.s;
+    }
+    return out;
+  }
+
+  // split items at barlines (4/4), tie notes across splits → array of measures
+  function toMeasures(items, div) {
+    const per = div * 4;
+    const measures = [];
+    let cur = [], pos = 0;
+    const push = g => {
+      cur.push(g); pos += g.steps;
+      if (pos % per === 0) { measures.push(cur); cur = []; }
+    };
+    for (const it of items) {
+      let remaining = it.steps;
+      while (remaining > 0) {
+        const room = per - (pos % per);
+        const chunk = Math.min(remaining, room);
+        const vals = decompose(chunk, it.type === "note" ? NOTE_VALS[div] : REST_VALS[div]);
+        vals.forEach((v, i) => push({
+          kind: it.type, base: v.b, dots: v.dots || 0, steps: v.s,
+          tie: it.type === "note" && (i < vals.length - 1 || remaining - chunk > 0)
+        }));
+        remaining -= chunk;
+      }
+    }
+    if (pos % per !== 0) {
+      decompose(per - (pos % per), REST_VALS[div])
+        .forEach(v => push({ kind: "rest", base: v.b, dots: 0, steps: v.s }));
+    }
+    if (cur.length) measures.push(cur);
+    return measures;
+  }
+
+  const GLYPH_W = { w: 58, h: 44, q: 32, e: 26, s: 22 };
+  const glyphW = g => GLYPH_W[g.base] + (g.dots ? 5 : 0);
+  const measureW = m => m.reduce((a, g) => a + glyphW(g), 0) + 14;
+
+  function drawGlyph(g, cx, y0) {
+    let s = "";
+    if (g.kind === "note") {
+      if (g.base === "w") {
+        s += `<ellipse cx="${cx}" cy="${y0}" rx="6.5" ry="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/>`;
+      } else {
+        const hollow = g.base === "h";
+        s += `<ellipse cx="${cx}" cy="${y0}" rx="5.5" ry="4" transform="rotate(-18 ${cx} ${y0})" ${hollow ? 'fill="none" stroke="currentColor" stroke-width="1.6"' : 'fill="currentColor"'}/>`;
+        const sx = cx + 5, ty = y0 - 30;
+        s += `<line x1="${sx}" y1="${y0 - 1.5}" x2="${sx}" y2="${ty}" stroke="currentColor" stroke-width="1.4"/>`;
+        const flags = g.base === "e" ? 1 : g.base === "s" ? 2 : 0;
+        for (let i = 0; i < flags; i++) {
+          const fy = ty + i * 7;
+          s += `<path d="M ${sx} ${fy} C ${sx + 8} ${fy + 6}, ${sx + 7} ${fy + 12}, ${sx + 3} ${fy + 17}" fill="none" stroke="currentColor" stroke-width="2"/>`;
+        }
+      }
+    } else {
+      if (g.base === "w") {
+        s += `<rect x="${cx - 6}" y="${y0}" width="12" height="5" fill="currentColor"/>`;
+      } else if (g.base === "h") {
+        s += `<rect x="${cx - 6}" y="${y0 - 5}" width="12" height="5" fill="currentColor"/>`;
+      } else if (g.base === "q") {
+        s += `<path d="M ${cx - 2} ${y0 - 11} L ${cx + 3} ${y0 - 5} L ${cx - 2} ${y0} L ${cx + 3} ${y0 + 5} Q ${cx - 4} ${y0 + 4} ${cx - 0.5} ${y0 + 10}" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/>`;
+      } else {
+        // 8th / 16th rest: blob(s) + slash
+        s += `<circle cx="${cx - 3}" cy="${y0 - 5}" r="2" fill="currentColor"/>`;
+        s += `<path d="M ${cx - 3} ${y0 - 4} Q ${cx} ${y0 - 2} ${cx + 3} ${y0 - 7}" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+        if (g.base === "s") {
+          s += `<circle cx="${cx - 4}" cy="${y0 + 1}" r="2" fill="currentColor"/>`;
+          s += `<path d="M ${cx - 4} ${y0 + 2} Q ${cx - 1} ${y0 + 4} ${cx + 1.2} ${y0}" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+          s += `<line x1="${cx + 3}" y1="${y0 - 7}" x2="${cx - 2}" y2="${y0 + 11}" stroke="currentColor" stroke-width="1.6"/>`;
+        } else {
+          s += `<line x1="${cx + 3}" y1="${y0 - 7}" x2="${cx - 2}" y2="${y0 + 8}" stroke="currentColor" stroke-width="1.6"/>`;
+        }
+      }
+    }
+    if (g.dots) s += `<circle cx="${cx + 10}" cy="${y0 - 4}" r="1.8" fill="currentColor"/>`;
+    return s;
+  }
+
+  const tieArc = (x1, x2, y) =>
+    `<path d="M ${x1} ${y} Q ${(x1 + x2) / 2} ${y + 7} ${x2} ${y}" fill="none" stroke="currentColor" stroke-width="1.3"/>`;
+
+  function renderScore() {
+    if (!current) return;
+    $("bpmShow").textContent = "♩=" + scoreBpm;
+    const items = transcribe(current.notes, scoreBpm, scoreDiv);
+    const measures = toMeasures(items, scoreDiv);
+
+    const scroll = $("scoreScroll");
+    const maxW = Math.max((scroll.clientWidth || 480) - 12, 280);
+    const indent = 40, margin = 14;
+
+    // flow measures into lines, wrapping only at barlines
+    const lines = [];
+    let cur = [], w = indent;
+    for (const m of measures) {
+      const mw = measureW(m);
+      if (cur.length && w + mw > maxW) { lines.push(cur); cur = []; w = margin; }
+      cur.push(m); w += mw;
+    }
+    if (cur.length) lines.push(cur);
+
+    const lineH = 72, top = 26;
+    const height = top + lines.length * lineH;
+    let svg = `<text x="6" y="16" font-family="sans-serif" font-size="13" font-weight="600" fill="currentColor">♩ = ${scoreBpm}</text>`;
+    let pendingTie = null; // {x, y0, line}
+
+    lines.forEach((ms, li) => {
+      const y0 = top + li * lineH + 30;
+      let x = li === 0 ? indent : margin;
+      const lineEnd = x + ms.reduce((a, m) => a + measureW(m), 0);
+      svg += `<line x1="4" y1="${y0}" x2="${lineEnd}" y2="${y0}" stroke="currentColor" stroke-width="1"/>`;
+      if (li === 0) {
+        svg += `<text x="14" y="${y0 - 2}" font-family="serif" font-size="15" font-weight="700" fill="currentColor">4</text>`;
+        svg += `<text x="14" y="${y0 + 13}" font-family="serif" font-size="15" font-weight="700" fill="currentColor">4</text>`;
+      }
+      ms.forEach((m, mi) => {
+        for (const g of m) {
+          const cx = x + 9;
+          if (g.kind === "note" && pendingTie) {
+            if (pendingTie.line === li) {
+              svg += tieArc(pendingTie.x + 5, cx - 5, y0 + 6);
+            } else {
+              svg += tieArc(pendingTie.x + 5, pendingTie.lineEnd - 2, pendingTie.y0 + 6);
+              svg += tieArc(margin - 6, cx - 5, y0 + 6);
+            }
+            pendingTie = null;
+          }
+          svg += drawGlyph(g, cx, y0);
+          if (g.tie) pendingTie = { x: cx, y0, line: li, lineEnd };
+          x += glyphW(g);
+        }
+        const isLast = li === lines.length - 1 && mi === ms.length - 1;
+        if (isLast) {
+          svg += `<line x1="${x + 4}" y1="${y0 - 12}" x2="${x + 4}" y2="${y0 + 12}" stroke="currentColor" stroke-width="1"/>`;
+          svg += `<line x1="${x + 8}" y1="${y0 - 12}" x2="${x + 8}" y2="${y0 + 12}" stroke="currentColor" stroke-width="3"/>`;
+        } else {
+          svg += `<line x1="${x + 5}" y1="${y0 - 12}" x2="${x + 5}" y2="${y0 + 12}" stroke="currentColor" stroke-width="1"/>`;
+        }
+        x += 14;
+      });
+    });
+
+    const el = $("scoreSvg");
+    el.setAttribute("width", maxW);
+    el.setAttribute("height", height);
+    el.setAttribute("viewBox", `0 0 ${maxW} ${height}`);
+    el.innerHTML = svg;
+  }
+
+  $("scoreBtn").addEventListener("click", () => {
+    if (!current) return;
+    const wrap = $("scoreWrap");
+    if (wrap.classList.contains("show")) { wrap.classList.remove("show"); return; }
+    scoreBpm = refineBpm(current.notes, estimateBpm(current.notes) || 120);
+    wrap.classList.add("show");
+    renderScore();
+  });
+  $("bpmHalf").addEventListener("click", () => { scoreBpm = Math.max(30, Math.round(scoreBpm / 2)); renderScore(); });
+  $("bpmDouble").addEventListener("click", () => { scoreBpm = Math.min(300, scoreBpm * 2); renderScore(); });
+  $("bpmMinus").addEventListener("click", () => { scoreBpm = Math.max(30, scoreBpm - 5); renderScore(); });
+  $("bpmPlus").addEventListener("click", () => { scoreBpm = Math.min(300, scoreBpm + 5); renderScore(); });
+  $("divSel").addEventListener("change", e => { scoreDiv = +e.target.value; renderScore(); });
+
+  $("scorePng").addEventListener("click", () => {
+    const el = $("scoreSvg");
+    const w = +el.getAttribute("width"), h = +el.getAttribute("height");
+    if (!w || !h) return;
+    const src = el.outerHTML.replace(/currentColor/g, "#111");
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = w * 2; c.height = h * 2;
+      const g2 = c.getContext("2d");
+      g2.fillStyle = "#fff";
+      g2.fillRect(0, 0, c.width, c.height);
+      g2.scale(2, 2);
+      g2.drawImage(img, 0, 0);
+      c.toBlob(b => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(b);
+        a.download = "rhythm-score.png";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(src);
+  });
+
+  // ---------- playback ----------
+  const speedInput = $("speed"), speedVal = $("speedVal");
+  speedInput.addEventListener("input", () => {
+    speedVal.textContent = (speedInput.value / 100).toFixed(2).replace(/0$/, "") + "x";
+  });
+
+  function stopPlayback() {
+    playToken++;
+    cursor.style.display = "none";
+    $("playBtn").textContent = "▶ 再生";
+    tl.querySelectorAll(".note").forEach(el => el.classList.remove("hit"));
+  }
+
+  function play(take) {
+    stopPlayback();
+    const token = playToken;
+    const rate = speedInput.value / 100;
+    const ctx = ensureAudio();
+    const t0 = ctx.currentTime + 0.12;
+    const noteEls = tl.querySelectorAll(".note");
+    $("playBtn").textContent = "■ 停止";
+    cursor.style.display = "block";
+
+    take.notes.forEach((n, i) => {
+      beep(t0 + n.t / 1000 / rate, n.d / rate);
+      setTimeout(() => {
+        if (token !== playToken) return;
+        vibrate(Math.min(n.d / rate, 200));
+        if (noteEls[i]) {
+          noteEls[i].classList.add("hit");
+          setTimeout(() => noteEls[i] && noteEls[i].classList.remove("hit"), Math.max(n.d / rate, 120));
+        }
+      }, 120 + n.t / rate);
+    });
+
+    const totalMs = take.total / rate;
+    const startMs = performance.now() + 120;
+    (function tick() {
+      if (token !== playToken) return;
+      const p = (performance.now() - startMs) / totalMs;
+      if (p >= 1) { stopPlayback(); return; }
+      if (p >= 0) cursor.style.left = (p * 100) + "%";
+      requestAnimationFrame(tick);
+    })();
+  }
+
+  $("playBtn").addEventListener("click", () => {
+    if ($("playBtn").textContent.startsWith("■")) { stopPlayback(); return; }
+    if (current) play(current);
+  });
+  $("discardBtn").addEventListener("click", hideTake);
+
+  // ---------- storage ----------
+  function loadMemos() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+    catch { return []; }
+  }
+  function saveMemos(list) {
+    localStorage.setItem(LS_KEY, JSON.stringify(list));
+  }
+
+  $("saveBtn").addEventListener("click", () => {
+    if (!current) return;
+    const now = new Date();
+    const def = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} のリズム`;
+    const name = (prompt("名前をつけて保存", def) || "").trim() || def;
+    const list = loadMemos();
+    list.unshift({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name,
+      createdAt: now.toISOString(),
+      notes: current.notes,
+      total: current.total
+    });
+    saveMemos(list);
+    renderSaved();
+    hideTake();
+    toast("保存しました 🎉");
+  });
+
+  function renderSaved() {
+    const list = loadMemos();
+    const wrap = $("savedList");
+    wrap.innerHTML = "";
+    $("emptyMsg").style.display = list.length ? "none" : "block";
+    for (const m of list) {
+      const row = document.createElement("div");
+      row.className = "memo";
+      const bpm = estimateBpm(m.notes);
+      row.innerHTML = `
+        <div class="meta">
+          <div class="name"></div>
+          <div class="sub">${m.notes.length}打 / ${fmtDur(m.total)}${bpm ? " / ♩≈" + bpm : ""}</div>
+        </div>
+        <button class="playOne" title="再生">▶</button>
+        <button class="del" title="削除">🗑</button>`;
+      row.querySelector(".name").textContent = m.name;
+      row.querySelector(".playOne").addEventListener("click", () => {
+        current = { notes: m.notes, total: m.total };
+        showTake(current);
+        play(current);
+      });
+      row.querySelector(".del").addEventListener("click", () => {
+        if (!confirm(`「${m.name}」を削除しますか?`)) return;
+        saveMemos(loadMemos().filter(x => x.id !== m.id));
+        renderSaved();
+      });
+      wrap.appendChild(row);
+    }
+  }
+
+  // ---------- import / export ----------
+  $("exportBtn").addEventListener("click", () => {
+    const list = loadMemos();
+    if (!list.length) { toast("保存されたリズムがありません"); return; }
+    const blob = new Blob([JSON.stringify({ app: "rhythm-tap", version: 1, memos: list }, null, 2)],
+      { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "rhythm-memos.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+  $("importFile").addEventListener("change", async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const memos = Array.isArray(data) ? data : data.memos;
+      if (!Array.isArray(memos)) throw new Error("bad format");
+      const list = loadMemos();
+      const ids = new Set(list.map(m => m.id));
+      let added = 0;
+      for (const m of memos) {
+        if (!m || !Array.isArray(m.notes)) continue;
+        if (ids.has(m.id)) continue;
+        list.push(m);
+        added++;
+      }
+      list.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      saveMemos(list);
+      renderSaved();
+      toast(`${added}件読み込みました`);
+    } catch {
+      toast("読み込めないファイルです");
+    }
+    e.target.value = "";
+  });
+
+  // ---------- toast ----------
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  renderSaved();
+})();
+</script>
+</body>
+</html>
