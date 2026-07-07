@@ -152,6 +152,46 @@
   #beatDots i.hit { background: var(--accent); border-color: transparent; transform: scale(1.45); box-shadow: 0 0 10px var(--accent); }
   #beatDots i.accent.hit { background: var(--accent2); box-shadow: 0 0 12px var(--accent2); }
 
+  /* ---- sound picker ---- */
+  #soundPicker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    box-shadow: var(--shadow);
+  }
+  #soundPicker .spLabel { font-size: 12px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
+  #soundPicker .spChips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #soundPicker .spChips::-webkit-scrollbar { display: none; }
+  #soundPicker .spChips button {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
+  }
+  #soundPicker .spChips button.on {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 3px 12px var(--accent-soft);
+  }
+
   /* ---- tap pad ---- */
   #pad {
     position: relative;
@@ -435,6 +475,17 @@
   <div id="beatDots"><i class="accent"></i><i></i><i></i><i></i></div>
 </div>
 
+<div id="soundPicker">
+  <span class="spLabel">音色</span>
+  <div class="spChips">
+    <button data-sound="pop" class="on">ポップ</button>
+    <button data-sound="wood">ウッドブロック</button>
+    <button data-sound="clap">手拍子</button>
+    <button data-sound="drum">ドラム</button>
+    <button data-sound="hat">ハイハット</button>
+  </div>
+</div>
+
 <div id="pad">
   <div id="recDot">REC</div>
   <div id="elapsed"></div>
@@ -529,26 +580,108 @@
     if (audioCtx.state === "suspended") audioCtx.resume();
     return audioCtx;
   }
-  // short percussive "tap" sound; longer notes sustain a soft tone
+  // ---- tap/playback sound engine ----
+  let noiseBuf = null;
+  function getNoise(ctx) {
+    if (!noiseBuf) {
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    return noiseBuf;
+  }
+  function tone(ctx, t, { type = "sine", f0, f1, decay, gain = 0.5 }) {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(f0, t);
+    if (f1) osc.frequency.exponentialRampToValueAtTime(f1, t + decay * 0.6);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + decay + 0.05);
+  }
+  function noiseBurst(ctx, t, { filter, freq, q = 1, decay, gain = 0.5 }) {
+    const src = ctx.createBufferSource();
+    src.buffer = getNoise(ctx);
+    const f = ctx.createBiquadFilter();
+    f.type = filter;
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    src.connect(f).connect(g).connect(ctx.destination);
+    src.start(t);
+    src.stop(t + decay + 0.05);
+  }
+
+  const SOUNDS = {
+    // soft melodic "poko" — the only voice that sustains for held notes
+    pop(ctx, t, sus) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const sustain = Math.min(Math.max(sus, 0.06), 1.2);
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(660, t);
+      osc.frequency.exponentialRampToValueAtTime(440, t + 0.05);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.5, t + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.12, t + 0.06);
+      gain.gain.setValueAtTime(0.12, t + Math.max(sustain - 0.05, 0.06));
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + sustain);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + sustain + 0.05);
+    },
+    // woodblock: two bright partials + click transient
+    wood(ctx, t) {
+      tone(ctx, t, { f0: 880, f1: 620, decay: 0.09, gain: 0.55 });
+      tone(ctx, t, { f0: 1760, decay: 0.045, gain: 0.22 });
+      noiseBurst(ctx, t, { filter: "bandpass", freq: 2400, q: 2, decay: 0.02, gain: 0.3 });
+    },
+    // clap: retriggered noise bursts + body decay (909 style)
+    clap(ctx, t) {
+      for (let i = 0; i < 3; i++) {
+        noiseBurst(ctx, t + i * 0.011, { filter: "bandpass", freq: 1300, q: 1.4, decay: 0.02, gain: 1.6 });
+      }
+      noiseBurst(ctx, t + 0.033, { filter: "bandpass", freq: 1100, q: 1.2, decay: 0.16, gain: 1.4 });
+    },
+    // low drum thump with pitch drop
+    drum(ctx, t) {
+      tone(ctx, t, { f0: 165, f1: 55, decay: 0.28, gain: 0.85 });
+      noiseBurst(ctx, t, { filter: "lowpass", freq: 900, decay: 0.03, gain: 0.35 });
+    },
+    // closed hi-hat: bright filtered noise
+    hat(ctx, t) {
+      noiseBurst(ctx, t, { filter: "highpass", freq: 7000, decay: 0.05, gain: 0.4 });
+      noiseBurst(ctx, t, { filter: "bandpass", freq: 10000, q: 1, decay: 0.03, gain: 0.25 });
+    }
+  };
+
+  const SOUND_LS_KEY = "rhythm-tap-sound-v1";
+  let soundKind = localStorage.getItem(SOUND_LS_KEY);
+  if (!SOUNDS[soundKind]) soundKind = "pop";
+
   function beep(when, durMs) {
     if (!soundOn) return;
     const ctx = ensureAudio();
     const t = Math.max(when, ctx.currentTime);
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    const sustain = Math.min(Math.max(durMs / 1000, 0.06), 1.2);
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(660, t);
-    osc.frequency.exponentialRampToValueAtTime(440, t + 0.05);
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.5, t + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.12, t + 0.06);
-    gain.gain.setValueAtTime(0.12, t + Math.max(sustain - 0.05, 0.06));
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + sustain);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t);
-    osc.stop(t + sustain + 0.05);
+    SOUNDS[soundKind](ctx, t, durMs / 1000);
   }
+
+  const soundChips = document.querySelectorAll("#soundPicker .spChips button");
+  soundChips.forEach(chip => {
+    chip.classList.toggle("on", chip.dataset.sound === soundKind);
+    chip.addEventListener("click", () => {
+      soundKind = chip.dataset.sound;
+      localStorage.setItem(SOUND_LS_KEY, soundKind);
+      soundChips.forEach(c => c.classList.toggle("on", c === chip));
+      ensureAudio();
+      beep(0, 120); // preview
+    });
+  });
   function vibrate(ms) {
     if (vibOn && navigator.vibrate) navigator.vibrate(ms);
   }
